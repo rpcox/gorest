@@ -1,0 +1,121 @@
+#!/bin/bash
+# 
+# Collect the necessary information to set up a PostgreSQL DB for a REST API example.  Two users are created. An
+# 'admin' and a 'user'.  The admin has full control over the DB, the user only receives the privilege permitted
+# by the admin.
+#
+
+declare -A DB
+
+function prompt {
+	printf "%20s" "$1: "
+}
+
+function set_passwd {
+	confirmed=false
+	pass=0
+
+	while ! confirmed; do
+		printf "\tSet password for \"$1\""
+		read -s passwd_1; echo
+		printf "\tConfirm password: "
+		read -s passwd_2; echo
+		
+		if [[ $passwd_1 == $passwd_2 ]]; then
+			confirmed=true
+			tmp_passwd=$passwd_1
+		else
+			echo -e "\tERROR: passwords do not match.  try again ..."
+			((pass++))
+		fi
+
+		if (( $pass == 2 )); then
+		    	echo "FATAL: password confirmation fail.  exiting ..."
+			exit 2
+		fi
+	done
+}
+
+echo "Database to be used in"
+echo -e "\t[P]roduction\n\t[Q]A/Test\n\t[D]evelopment\n"
+prompt "[P/q/d] "; read ENV
+case $ENV in
+	d|D) ENV="dev"
+		;;
+	q|Q) ENV="qa"
+		;;
+	p|P) ENV="prod"
+		;;
+	*)   ENV="prod"
+		;;
+esac
+echo
+
+# Get database name
+prompt "Database name"; read DB[NAME]
+DB[NAME]=${DB[NAME]}_$ENV
+# New schema name will be db name
+DB[SCHEMA]=${DB[NAME]}
+
+# Superuser for the new db
+prompt "Admin user"; read DB[ADMIN]
+set_passwd ${DB[ADMIN]}
+DB[ADMIN_PASSWD]=$tmp_passwd; tmp_passwd=""
+
+# User for the new db
+prompt "Application user"; read DB[USER]
+set_passwd ${DB[USER]}
+DB[USER_PASSWD]=$tmp_passwd; tmp_passwd=""
+
+echo
+for n in NAME SCHEMA ADMIN USER; do
+	printf "%12s: %s\n" "DB_${n}" ${DB[${n}]}
+done
+echo; echo
+
+script=${DB[NAME]}.sql
+
+read -p "  Create script [Y/n]? " yn
+case $yn in
+	n|N) echo "  exiting ..."; exit 0
+		;;
+	y|Y) echo; echo " Creating $script"
+		;;
+	*) echo; echo " Creating $script"
+		;;
+esac
+echo
+
+# create admin user
+echo "CREATE USER ${DB[ADMIN]} WITH PASSWORD '${DB[ADMIN_PASSWD]}';"          > $script
+# create app user
+echo "CREATE USER ${DB[USER]} WITH PASSWORD '${DB[USER_PASSWD]}';"           >> $script
+# create database with admin as user
+echo "CREATE DATABASE ${DB[NAME]} WITH OWNER ${DB[ADMIN]};"                  >> $script
+# connect to new database as postgresql superuser
+echo "\c ${DB[NAME]} postgres"                                               >> $script
+# drop the public schema (permissions are permissive)
+echo "DROP SCHEMA public;"                                                   >> $script
+# create a new schema to replace it
+echo "CREATE SCHEMA ${DB[SCHEMA]} AUTHORIZATION ${DB[ADMIN]};"               >> $script
+# use new schema as the default for both users
+echo "ALTER ROLE ${DB[ADMIN]} SET search_path TO ${DB[SCHEMA]};"             >> $script
+echo "ALTER ROLE ${DB[USER]} SET search_path TO ${DB[SCHEMA]};"              >> $script
+# might want case insensitive search capability
+#echo "CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA ${DB[SCHEMA]};"      >> $script
+# connect to new database as admin
+echo "\c ${DB[NAME]} ${DB[ADMIN]}"                                           >> $script
+# give new user permission to use new database
+echo "GRANT USAGE ON SCHEMA ${DB[SCHEMA]} TO ${DB[USER]};"                   >> $script
+# strip permissions to execute functions from PUBLIC
+echo "ALTER DEFAULT PRIVILEGES FOR ROLE ${DB[ADMIN]} REVOKE EXECUTE FROM PUBLIC;"                            >> $script
+# let new user use tables
+echo "A:TER DEFAULT PRIVILEGES FOR ROLE ${DB[ADMIN]} GRANT SELECT, INSERT, UPDATE ON TABLES TO ${DB[USER]};" >> $script
+# let new user use sequences
+echo "A:TER DEFAULT PRIVILEGES FOR ROLE ${DB[ADMIN]} GRANT SELECT, USAGE ON SEQUENCES TO ${DB[USER]};"       >> $script
+# let new user use functions
+echo "A:TER DEFAULT PRIVILEGES FOR ROLE ${DB[ADMIN]} GRANT EXECUTE ON FUNCTIONS TO ${DB[USER]};"             >> $script
+# quit
+echo "\q"                                                                                                    >> $script
+
+echo " Run \"psql -f $script\" to create database"
