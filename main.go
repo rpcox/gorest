@@ -34,18 +34,20 @@ type Config struct {
 }
 
 var (
-	port	= flag.Int
-	conf	= flag.String
-	logFile =
+	port	= flag.Int("port", 5000, "TCP bind port")
+	conf	= flag.String("conf", "rest_api.conf", "App configuration data")
+	logFile = flag.String("log", "", "Location for app log file")
+	config	  Config
 )
 
 func middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w, http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
+	})
 }
 
-func apiRoot(w, http.ResponseWriter, r *http.Request) {
+func apiRoot(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	resp["status"] = "ok"
@@ -54,16 +56,16 @@ func apiRoot(w, http.ResponseWriter, r *http.Request) {
 	w.Write(jsonResp)
 }
 
-func echo(w, http.ResponseWriter, r *http.Request) {
+func echo(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	resp["status"] = "ok"
 	resp["message"] = "echo"
-	jsonResp, err := json.Marshal(resp)
-	W.Write(jsonResp)
+	jsonResp, _ := json.Marshal(resp)
+	w.Write(jsonResp)
 }
 
-func endpoint(w, http.ResponseWriter, r *http.Request) {
+func endpoint(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	var data InboundPayload
@@ -71,52 +73,52 @@ func endpoint(w, http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		reqBody, err := io.ReadAll(r.Body)
 		if err != nil {
-			w.WriteHeader(http:StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			resp["status"] = "not_ok"
 			resp["message"] = err.Error()
-			log.Println(resp["message"])
+			log.Println("io.ReadAll() error:", resp["message"])
 			jsonResp, err := json.Marshal(resp)
 			if err != nil {
-				fmt.Fprintf(w., "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
-				log.Println("json.Marshal() fail", err)
+				fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() error\"}")
+				log.Println("json.Marshal() error", err)
 				return
 			}
-			W.Write(jsonResp)
+			w.Write(jsonResp)
 			return
-	}
+		}
 
 		err = json.Unmarshal(reqBody, &data)
 		if err != nil {
-			w.WriteHeader(http:StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			resp["status"] = "not_ok"
 			resp["message"] = err.Error()
-			log.Println(resp["message"])
+			log.Println("json.Unmarshal() errpr:", resp["message"])
 			jsonResp, err := json.Marshal(resp)
 			if err != nil {
-				fmt.Fprintf(w., "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
-				log.Println("json.Marshal() fail", err)
+				fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() error\"}")
+				log.Println("json.Marshal() error:", err)
 				return
 			}
-			W.Write(jsonResp)
+			w.Write(jsonResp)
 			return
 		}
 
 		connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-					config.Host, config.Port, config.User, config.Password, config.Dbname, config.Sslmode)
+					config.Host, config.Port, config.User, config.Passwd, config.DBName, config.Sslmode)
 
 		conn,err := sql.Open("postgres", connString)
 		if err != nil {
-			w.WriteHeader(http:StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			resp["status"] = "not_ok"
 			resp["message"] = err.Error()
-			log.Println(resp["message"])
+			log.Println("sql.Open() error:", resp["message"])
 			jsonResp, err := json.Marshal(resp)
 			if err != nil {
-				fmt.Fprintf(w., "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
-				log.Println("json.Marshal() fail", err)
+				fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() error\"}")
+				log.Println("json.Marshal() error", err)
 				return
 			}
-			W.Write(jsonResp)
+			w.Write(jsonResp)
 			return
 		}
 
@@ -126,36 +128,36 @@ func endpoint(w, http.ResponseWriter, r *http.Request) {
 
 		_, err = conn.Exec(statement)
 		if err != nil {
-			w.WriteHeader(http:StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			resp["status"] = "not_ok"
 			resp["message"] = err.Error()
-			log.Println(resp["message"])
+			log.Println("conn.Exec() error:", resp["message"])
 			jsonResp, err := json.Marshal(resp)
 			if err != nil {
-				fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
-				log.Println("conn.Exec(): json.Marshal() fail: ", err)
+				fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() error\"}")
+				log.Println("conn.Exec(): json.Marshal() error: ", err)
 				return
 			}
 			w.Write(jsonResp)
 			return
 		}
 	} else if r.Method == "GET" {
-		w.WriteHeader(http:StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		resp["status"] = "ok"
 		resp["message"] = "method not implemented"
 		log.Println(resp["message"])
 		jsonResp, err := json.Marshal(resp)
 		if err != nil {
 			fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
-			log.Println("conn.Exec(): json.Marshal() fail: ", err)
+			log.Println("GET json.Marshal() fail: ", err)
 			return
-		{
+		}
 		w.Write(jsonResp)
 	} else {
-		w.WriteHeader(http:StatusMethodNotAllowed))
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		resp["status"] = "ok"
 		resp["message"] = "method not allowed"
-		log.Println(resp["message"])
+		log.Println(r.Method, "not allowed")
 		jsonResp, err := json.Marshal(resp)
 		if err != nil {
 			fmt.Fprintf(w, "{\"status\":\"not_ok\",\"message\":\"json.Marshal() fail\"}")
@@ -164,16 +166,13 @@ func endpoint(w, http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(jsonResp)
 	}
-
-
 }
-
 
 
 func main() {
 	flag.Parse()
 	fhlog, err := os.OpenFile(*logFile, os.O_APPEND |os.O_CREATE|os.O_WRONLY, 0640)
-	if err != nid {
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -189,6 +188,7 @@ func main() {
 	}
 
 	err = json.Unmarshal(data, &config)
+	if err != nil {
 		fmt.Println(err)
 		log.Fatal(err)
 	}
@@ -200,6 +200,6 @@ func main() {
 	router.HandleFunc("api/v1/endpoint", endpoint)
 	log.Println("binding on port ", *port)
 	log.Println("rest_api starting")
-	log.Fatal(http.ListenAndServe(":" + strconf.Itoa(*port), router)
+	log.Fatal(http.ListenAndServe(":" + strconv.Itoa(*port), router))
 }
 
