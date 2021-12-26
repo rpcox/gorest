@@ -1,3 +1,4 @@
+// Simple REST API with a PostgreSQL backend
 package main
 
 import (
@@ -38,29 +39,31 @@ var (
 	logFile =
 )
 
-
-// middleware
 func middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w, http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		next.ServeHTTP(w, r)
 }
 
-
 func apiRoot(w, http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	resp["status"] = "ok"
 	resp["message"] = "success"
-	jsonResp, err := json.Marshal(resp)
-	if err != nil {
-		log.Fatal("apiRoot json.Marshal() fail: ", err)
-	}
-	w.WriteHandler(http.StatusInternalServerError)
+	jsonResp, _ := json.Marshal(resp)
 	w.Write(jsonResp)
 }
 
-func httpInbound(w, http.ResponseWriter, r *http.Request) {
+func echo(w, http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	resp := make(map[string]string)
+	resp["status"] = "ok"
+	resp["message"] = "echo"
+	jsonResp, err := json.Marshal(resp)
+	W.Write(jsonResp)
+}
+
+func endpoint(w, http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	var data InboundPayload
@@ -194,7 +197,7 @@ func main() {
 	router.Use(middleware)
 	router.HandleFunc("api/v1/", apiRoot)
 	router.HandleFunc("api/v1/echo", echo)
-	router.HandleFunc("api/v1/endpoint", httpInbound)
+	router.HandleFunc("api/v1/endpoint", endpoint)
 	log.Println("binding on port ", *port)
 	log.Println("rest_api starting")
 	log.Fatal(http.ListenAndServe(":" + strconf.Itoa(*port), router)
