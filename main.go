@@ -25,18 +25,18 @@ type InboundPayload struct {
 }
 
 type Config struct {
-	Host	string
-	Port	int
-	User	string
-	Passwd  string
-	DBName  string
-	Sslmode	string
+	Host	string  `json:"host"`
+	Port	int     `json:"port"`
+	User	string  `json:"user"`
+	Passwd  string  `json:"passwd"`
+	DBName  string  `json:"dbname"`
+	DBPort  int     `json:"dbport"`
+	Sslmode	string  `json:"sslmode"`
 }
 
 var (
-	port	= flag.Int("port", 5000, "TCP bind port")
 	conf	= flag.String("conf", "rest_api.conf", "App configuration data")
-	logFile = flag.String("log", "", "Location for app log file")
+	logFile = flag.String("log", "rest_api.log", "Location for app log file")
 	config	  Config
 )
 
@@ -47,11 +47,12 @@ func middleware(next http.Handler) http.Handler {
 	})
 }
 
-func apiRoot(w http.ResponseWriter, r *http.Request) {
+func root(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	resp := make(map[string]string)
 	resp["status"] = "ok"
 	resp["message"] = "success"
+	log.Println("root: ", resp["message"])
 	jsonResp, _ := json.Marshal(resp)
 	w.Write(jsonResp)
 }
@@ -61,6 +62,7 @@ func echo(w http.ResponseWriter, r *http.Request) {
 	resp := make(map[string]string)
 	resp["status"] = "ok"
 	resp["message"] = "echo"
+	log.Println(resp["message"])
 	jsonResp, _ := json.Marshal(resp)
 	w.Write(jsonResp)
 }
@@ -103,10 +105,10 @@ func endpoint(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-					config.Host, config.Port, config.User, config.Passwd, config.DBName, config.Sslmode)
+		connString := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+					config.Host, config.DBPort, config.User, config.Passwd, config.DBName, config.Sslmode)
 
-		conn,err := sql.Open("postgres", connString)
+		conn, err := sql.Open("postgres", connString)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			resp["status"] = "not_ok"
@@ -123,7 +125,7 @@ func endpoint(w http.ResponseWriter, r *http.Request) {
 		}
 
 		defer conn.Close()
-		statement := fmt.Sprintf("insert into app_table (time, key, field1, field2) values ('%s', '%s', '%s', '%s');",
+		statement := fmt.Sprintf("insert into test (time,key,field1,field2) values ('%s','%s','%s','%s');",
 					data.Time, data.Key, data.Field1, data.Field2)
 
 		_, err = conn.Exec(statement)
@@ -141,6 +143,11 @@ func endpoint(w http.ResponseWriter, r *http.Request) {
 			w.Write(jsonResp)
 			return
 		}
+		resp["status"] = "ok"
+		resp["message"] = "created"
+		jsonResp, err := json.Marshal(resp)
+		w.WriteHeader(http.StatusCreated)
+		w.Write(jsonResp)
 	} else if r.Method == "GET" {
 		w.WriteHeader(http.StatusNotFound)
 		resp["status"] = "ok"
@@ -183,23 +190,23 @@ func main() {
 	log.Println("using", *conf)
 	data, err := ioutil.ReadFile(*conf)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		fmt.Println(*conf,err)
+		log.Fatal(*conf, err)
 	}
 
 	err = json.Unmarshal(data, &config)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		fmt.Println(*conf, err)
+		log.Fatal(*conf, err)
 	}
 
 	router := mux.NewRouter()
 	router.Use(middleware)
-	router.HandleFunc("api/v1/", apiRoot)
-	router.HandleFunc("api/v1/echo", echo)
-	router.HandleFunc("api/v1/endpoint", endpoint)
-	log.Println("binding on port ", *port)
+	router.HandleFunc("/api/v1/", root)
+	router.HandleFunc("/api/v1/echo", echo)
+	router.HandleFunc("/api/v1/endpoint", endpoint)
+	log.Println("binding on port ", config.Port)
 	log.Println("rest_api starting")
-	log.Fatal(http.ListenAndServe(":" + strconv.Itoa(*port), router))
+	log.Fatal(http.ListenAndServe(":" + strconv.Itoa(config.Port), router))
 }
 
