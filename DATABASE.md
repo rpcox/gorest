@@ -20,7 +20,7 @@ To make the new DB accessible on the network.  Edit /some/path/postgresql.conf a
 Give the new admin and user access to the db.  Edit /some/path/pg_hba.conf
 
     # Database administrative login by Unix domain socket
-    local   all             postgres                                peer 
+    local   all             postgres                                peer
 
     # TYPE  DATABASE        USER            ADDRESS                 METHOD
 
@@ -29,7 +29,7 @@ Give the new admin and user access to the db.  Edit /some/path/pg_hba.conf
     local   all             all                                     peer
     # IPv4 local connections:
     host    mynewdb        newdbuser         0.0.0.0/0              md5      <= ADD LINE
-    host    all             all             127.0.0.1/32            md5     
+    host    all             all             127.0.0.1/32            md5
 
 
 #### Restart the database
@@ -49,7 +49,7 @@ When the edits are complete, restart PostgreSQL
 
 #### Execute script/db_setup
 
-    > db_setup 
+    > db_setup
     Database to be used in
     	[P]roduction
 	    [Q]A/Test
@@ -59,11 +59,11 @@ When the edits are complete, restart PostgreSQL
 
        Database name: mydb
           Admin user: db_admin
-	      Set password for "db_admin": 
-          Confirm password: 
+	      Set password for "db_admin":
+          Confirm password:
     Application user: db_user
-          Set password for "db_user": 
-          Confirm password: 
+          Set password for "db_user":
+          Confirm password:
 
        DB_NAME: mydb_dev
      DB_SCHEMA: mydb_dev
@@ -71,16 +71,16 @@ When the edits are complete, restart PostgreSQL
        DB_USER: db_user
 
 
-    Create script [Y/n]? 
+    Create script [Y/n]?
 
     Creating mydb_dev.sql
 
     Run "psql -f mydb_dev.sql" to create database
     >
-    
+
 #### Execute the generated SQL
-    
-    > sql -f mydb_dev.sql 
+
+    > sql -f mydb_dev.sql
     CREATE ROLE
     CREATE ROLE
     CREATE DATABASE
@@ -89,7 +89,7 @@ When the edits are complete, restart PostgreSQL
     CREATE SCHEMA
     ALTER ROLE
     ALTER ROLE
-    Password for user db_admin: 
+    Password for user db_admin:
     You are now connected to database "mydb_dev" as user "db_admin".
     GRANT
     ALTER DEFAULT PRIVILEGES
@@ -102,13 +102,13 @@ When the edits are complete, restart PostgreSQL
 
     postgres=# \l
                                   List of databases
-    Name    |  Owner   | Encoding |   Collate   |    Ctype    |   Access privileges   
+    Name    |  Owner   | Encoding |   Collate   |    Ctype    |   Access privileges
     -----------+----------+----------+-------------+-------------+-----------------------
-    mydb_dev  | db_admin | UTF8     | en_US.UTF-8 | en_US.UTF-8 | 
+    mydb_dev  | db_admin | UTF8     | en_US.UTF-8 | en_US.UTF-8 |
 
     postgres=# \du
                                    List of roles
-    Role name |                         Attributes                         | Member of 
+    Role name |                         Attributes                         | Member of
     -----------+------------------------------------------------------------+-----------
     db_admin  |                                                            | {}
     db_user   |                                                            | {}
@@ -116,23 +116,23 @@ When the edits are complete, restart PostgreSQL
 Connect as db_admin and test a table create/drop
 
     postgres=# \c mydb_dev db_admin
-    Password for user db_admin: 
+    Password for user db_admin:
     You are now connected to database "mydb_dev" as user "db_admin".
     mydb_dev=> create table test();
     CREATE TABLE
     mydb_dev=> \d
          List of relations
-    Schema  | Name | Type  |  Owner   
+    Schema  | Name | Type  |  Owner
     ----------+------+-------+----------
     mydb_dev | test | table | db_admin
-   
+
     mydb_dev=> drop table test;
     DROP TABLE
-    
+
 Try the same with db_user
 
     mydb_dev=> \c mydb_dev db_user;
-    Password for user db_user: 
+    Password for user db_user:
     You are now connected to database "mydb_dev" as user "db_user".
     mydb_dev=> create table test();
     ERROR:  permission denied for schema mydb_dev                  <= WHAT WE WANT
@@ -140,6 +140,23 @@ Try the same with db_user
                           ^
      mydb_dev=> \q
 
-    
+Last, test db_user access via network
+
+    > psql -U db_user -h localhost mydb_dev
+    Password for user db_user:
+    psql (12.9 (Ubuntu 12.9-0ubuntu0.20.04.1))
+    SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
+    Type "help" for help.
+
+    mydb_dev=>
+
+#### Create a table for testing
+
+    CREATE TABLE test (
+    time     timestamp,
+    key      varchar(32) not null,
+    field1   varchar(32),
+    field2   varchar(32)
+    );
 
 
